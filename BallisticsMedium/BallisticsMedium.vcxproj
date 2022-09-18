@@ -40,13 +40,13 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
@@ -71,12 +71,16 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>D:\vcpkg\packages\gflags_x64-windows\include;D:\vcpkg\packages\glog_x64-windows\include;D:\vcpkg\packages\eigen3_x64-windows\include;D:\vcpkg\packages\ceres_x64-windows\include;C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
     <TargetName>$(ProjectName)_x64</TargetName>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+    <ReferencePath>$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ExternalIncludePath>C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>D:\vcpkg\packages\gflags_x64-windows\include;D:\vcpkg\packages\glog_x64-windows\include;D:\vcpkg\packages\eigen3_x64-windows\include;D:\vcpkg\packages\ceres_x64-windows\include;C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
     <TargetName>$(ProjectName)_x64</TargetName>
+    <LibraryPath>$(LibraryPath)</LibraryPath>
+    <ReferencePath>$(ReferencePath)</ReferencePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -116,18 +120,18 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;BALLISTICSMEDIUM_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;BALLISTICSMEDIUM_EXPORTS;_WINDOWS;_USRDLL;GLOG_NO_ABBREVIATED_SEVERITIES;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\libs\python310.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\libs\python310.lib;D:\vcpkg\packages\ceres_x64-windows\debug\lib\ceres-debug.lib;D:\vcpkg\packages\gflags_x64-windows\debug\lib\gflags_debug.lib;D:\vcpkg\packages\glog_x64-windows\debug\lib\glog.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\um\x64\OneCore.Lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>python310_d.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <ProjectReference>
@@ -147,7 +151,7 @@
       <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -161,11 +165,23 @@
     </ProjectReference>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="interface.h" />
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="solver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="interface.cpp" />
+    <CopyFileToFolders Include="D:\vcpkg\packages\ceres_x64-windows\debug\bin\ceres-debug.dll">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="D:\vcpkg\packages\glog_x64-windows\debug\bin\glog.dll">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="D:\vcpkg\packages\gflags_x64-windows\debug\bin\gflags_debug.dll">
+      <FileType>Document</FileType>
+    </CopyFileToFolders>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

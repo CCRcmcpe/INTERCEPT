@@ -15,16 +15,16 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="interface.h">
-      <Filter>源文件</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="dllmain.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="interface.cpp">
+    <ClCompile Include="solver.h">
       <Filter>源文件</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CopyFileToFolders Include="D:\vcpkg\packages\ceres_x64-windows\debug\bin\ceres-debug.dll" />
+    <CopyFileToFolders Include="D:\vcpkg\packages\glog_x64-windows\debug\bin\glog.dll" />
+    <CopyFileToFolders Include="D:\vcpkg\packages\gflags_x64-windows\debug\bin\gflags_debug.dll" />
   </ItemGroup>
 </Project>
