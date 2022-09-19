@@ -23,8 +23,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="D:\vcpkg\packages\ceres_x64-windows\debug\bin\ceres-debug.dll" />
-    <CopyFileToFolders Include="D:\vcpkg\packages\glog_x64-windows\debug\bin\glog.dll" />
-    <CopyFileToFolders Include="D:\vcpkg\packages\gflags_x64-windows\debug\bin\gflags_debug.dll" />
+    <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gsl.dll" />
+    <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gslcblas.dll" />
   </ItemGroup>
 </Project>

@@ -71,7 +71,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ExternalIncludePath>D:\vcpkg\packages\gflags_x64-windows\include;D:\vcpkg\packages\glog_x64-windows\include;D:\vcpkg\packages\eigen3_x64-windows\include;D:\vcpkg\packages\ceres_x64-windows\include;C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
+    <ExternalIncludePath>D:\vcpkg\packages\gsl_x64-windows\include;D:\vcpkg\packages\gflags_x64-windows\include;D:\vcpkg\packages\glog_x64-windows\include;D:\vcpkg\packages\eigen3_x64-windows\include;D:\vcpkg\packages\ceres_x64-windows\include;C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\include;$(ExternalIncludePath)</ExternalIncludePath>
     <TargetName>$(ProjectName)_x64</TargetName>
     <LibraryPath>$(LibraryPath)</LibraryPath>
     <ReferencePath>$(ReferencePath)</ReferencePath>
@@ -131,7 +131,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\libs\python310.lib;D:\vcpkg\packages\ceres_x64-windows\debug\lib\ceres-debug.lib;D:\vcpkg\packages\gflags_x64-windows\debug\lib\gflags_debug.lib;D:\vcpkg\packages\glog_x64-windows\debug\lib\glog.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\um\x64\OneCore.Lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>D:\vcpkg\packages\gsl_x64-windows\lib\gsl.lib;C:\Users\Rcmcpe\AppData\Local\Programs\Python\Python310\libs\python310.lib;D:\vcpkg\packages\ceres_x64-windows\debug\lib\ceres-debug.lib;D:\vcpkg\packages\gflags_x64-windows\debug\lib\gflags_debug.lib;D:\vcpkg\packages\glog_x64-windows\debug\lib\glog.lib;C:\Program Files (x86)\Windows Kits\10\Lib\10.0.19041.0\um\x64\OneCore.Lib;%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>python310_d.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
     </Link>
     <ProjectReference>
@@ -169,17 +169,12 @@
     <ClCompile Include="solver.h" />
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="D:\vcpkg\packages\ceres_x64-windows\debug\bin\ceres-debug.dll">
+    <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gsl.dll">
       <FileType>Document</FileType>
     </CopyFileToFolders>
   </ItemGroup>
   <ItemGroup>
-    <CopyFileToFolders Include="D:\vcpkg\packages\glog_x64-windows\debug\bin\glog.dll">
-      <FileType>Document</FileType>
-    </CopyFileToFolders>
-  </ItemGroup>
-  <ItemGroup>
-    <CopyFileToFolders Include="D:\vcpkg\packages\gflags_x64-windows\debug\bin\gflags_debug.dll">
+    <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gslcblas.dll">
       <FileType>Document</FileType>
     </CopyFileToFolders>
   </ItemGroup>

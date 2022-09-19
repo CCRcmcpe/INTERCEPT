@@ -1,11 +1,9 @@
 #include "Eigen/Eigen"
-#include "ceres/problem.h"
-#include "ceres/numeric_diff_cost_function.h"
-#include "ceres/solver.h"
+#include "gsl/gsl_poly.h"
+#include "gsl/gsl_multiroots.h"
 #include <numbers>
 #include <functional>
 #include <iostream>
-using namespace ceres;
 using namespace Eigen;
 using namespace std;
 
@@ -48,6 +46,17 @@ private:
 	function<double(double, double)> From;
 };
 
+inline void PrintState(size_t iter, gsl_multiroot_fsolver* s)
+{
+	printf("iter = %3u x = % .3f % .3f "
+	       "f(x) = % .3e % .3e\n",
+	       iter,
+	       gsl_vector_get(s->x, 0),
+	       gsl_vector_get(s->x, 1),
+	       gsl_vector_get(s->f, 0),
+	       gsl_vector_get(s->f, 1));
+}
+
 class BallisticsSolver
 {
 	Vector3f TargetPos;
@@ -62,6 +71,10 @@ class BallisticsSolver
 
 	IntegrationResult Integrate(const float horizonal, const float vertical) const
 	{
+		if (isnan(horizonal) || isnan(vertical) || horizonal < -90 * DEGREE || horizonal > 90 * DEGREE || vertical < -90 * DEGREE || vertical > 90 * DEGREE)
+		{
+			throw exception("FUCK YOUR ");
+		}
 		Vector3f projPos(0, 0, 0);
 		Vector3f projVel = HVToVelocity(horizonal, vertical);
 		float t = 0;
@@ -86,11 +99,15 @@ class BallisticsSolver
 		}
 	}
 
-	float Loss(const float horizonal, const float vertical) const
+	Vector2f Loss(const float horizonal, const float vertical) const
 	{
 		auto [LastPos, T] = Integrate(horizonal, vertical);
 		const Vector3f lastTargetPos = TargetPosF(T);
-		return (LastPos - lastTargetPos).norm();
+		cout << (LastPos - lastTargetPos).head(2).norm() << endl << LastPos.z() - lastTargetPos.z() << endl;
+		return Vector2f(
+			(LastPos - lastTargetPos).head(2).norm(),
+			LastPos.z() - lastTargetPos.z()
+		);
 	}
 
 public:
@@ -112,24 +129,51 @@ public:
 
 	void operator()() const
 	{
-		Problem problem;
-		double x0[] = {0,0};
-		double* parameterBlocks[] = {x0};
-		auto adapter = [this](double h, double v) -> double { return Loss(h, v); };
-		problem.AddResidualBlock(
-			new NumericDiffCostFunction<CostFunctor, CENTRAL, 1, 2>(new CostFunctor(adapter)),
-			nullptr, parameterBlocks, 1
-		);
-		Solver::Options options;
-		options.minimizer_type = LINE_SEARCH;
-		options.use_explicit_schur_complement = true;
-		options.linear_solver_type = DENSE_QR;
-		options.minimizer_progress_to_stdout = true;
-		Solver::Summary summary;
+		int status;
+		size_t iter = 0;
 
-		ceres::Solve(options, &problem, &summary);
+		auto gslAdapter = [](const gsl_vector* x, void* params, gsl_vector* f) -> int
+		{
+			const BallisticsSolver* solver = static_cast<BallisticsSolver*>(params);
+			Vector2f loss = solver->Loss(gsl_vector_get(x, 0), gsl_vector_get(x, 1));
+			gsl_vector_set(f, 0, loss[0]);
+			gsl_vector_set(f, 1, loss[1]);
+			return GSL_SUCCESS;
+		};
 
-		std::cout << summary.FullReport() << endl;
+		void* pThis = const_cast<BallisticsSolver*>(this);
+		gsl_multiroot_function function = {gslAdapter, 2, pThis};
+
+		constexpr double init[2] = {0, 0.1};
+		gsl_vector* initX = gsl_vector_alloc(2);
+		gsl_vector_set(initX, 0, init[0]);
+		gsl_vector_set(initX, 1, init[1]);
+
+		const gsl_multiroot_fsolver_type* solverType = gsl_multiroot_fsolver_broyden;
+		gsl_multiroot_fsolver* solver = gsl_multiroot_fsolver_alloc(solverType, 2);
+		gsl_multiroot_fsolver_set(solver, &function, initX);
+
+		PrintState(iter, solver);
+
+		do
+		{
+			iter++;
+			status = gsl_multiroot_fsolver_iterate(solver);
+
+			PrintState(iter, solver);
+
+			if (status) /* check if solver is stuck */
+				break;
+
+			status =
+				gsl_multiroot_test_residual(solver->f, 1e-7);
+		}
+		while (status == GSL_CONTINUE && iter < 1000);
+
+		printf("status = %s\n", gsl_strerror(status));
+
+		gsl_multiroot_fsolver_free(solver);
+		gsl_vector_free(initX);
 	}
 };
 
