@@ -29,7 +29,7 @@ inline double AngleBetween(const Vector3d& v1, const Vector3d& v2)
 	Vector3d v2C = v1;
 	v1C.normalize();
 	v2C.normalize();
-	return acosf(clamp(v1.dot(v2), -1.0, 1.0));
+	return acos(clamp(v1.dot(v2), -1.0, 1.0));
 }
 
 
@@ -184,7 +184,7 @@ class BallisticsSolver
 		return valid;
 	}
 
-	struct ExactTimeParams
+	struct LocateDtParams
 	{
 		const BallisticsSolver* Solver;
 		Vector3d ProjPos;
@@ -193,11 +193,11 @@ class BallisticsSolver
 		double AirFriction;
 	};
 
-	static double LocateDeltaT(ExactTimeParams& exactTimeParams)
+	static double LocateDeltaT(LocateDtParams& exactTimeParams)
 	{
 		auto exactTimeEq = [](const double deltaT, void* params)
 		{
-			auto& [solver, projPos, projVel, t, airFriction] = *static_cast<ExactTimeParams*>(params);
+			auto& [solver, projPos, projVel, t, airFriction] = *static_cast<LocateDtParams*>(params);
 			const Vector3d projAcc = airFriction * projVel.array().pow(2).matrix() + G_ACC;
 			const Vector3d projVel2 = projVel + projAcc * deltaT;
 			const Vector3d projPos2 = projPos + projVel * deltaT;
@@ -209,12 +209,12 @@ class BallisticsSolver
 		//cout << exactTimeEq(lo, &exactTimeParams) << endl;
 		//cout << exactTimeEq(hi, &exactTimeParams) << endl;
 
-		gsl_function f{exactTimeEq, &exactTimeParams};
+		gsl_function function{exactTimeEq, &exactTimeParams};
 		gsl_root_fsolver* const brent = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
+		gsl_root_fsolver_set(brent, &function, lo, hi);
 
-		gsl_root_fsolver_set(brent, &f, lo, hi);
-		int status;
 		int iter = 0;
+		int status;
 		double root;
 		do
 		{
@@ -227,6 +227,8 @@ class BallisticsSolver
 			status = gsl_root_test_interval(lo, hi, 0, 0.001);
 		}
 		while (status == GSL_CONTINUE && iter < 100);
+
+		gsl_root_fsolver_free(brent);
 
 		return root;
 	}
@@ -255,8 +257,8 @@ class BallisticsSolver
 			Vector3d targetPos = TargetPosF(t);
 			if (const double angle = 90 * DEGREE - AngleBetween(targetPos - projPos, projVel); angle < 0)
 			{
-				ExactTimeParams exactTimeParams{this, projPos, projVel, lastT, AirFriction};
-				const double deltaT = LocateDeltaT(exactTimeParams);
+				LocateDtParams params{this, projPos, projVel, lastT, AirFriction};
+				const double deltaT = LocateDeltaT(params);
 
 				projAcc = AirFriction * projVel.array().pow(2).matrix() + G_ACC;
 				lastVel += projAcc * deltaT;
