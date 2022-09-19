@@ -72,7 +72,7 @@ void __stdcall RVExtension(char* output, int outputSize, const char* function)
 
 int main()
 {
-	BallisticsSolver(Vector3f(0,3000,0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 1000, -0.00005)();
+	cout << *BallisticsSolver(Vector3d(0, 3000, 0), Vector3d(0, 0, 0), Vector3d(0, 0, 0), 1000, 0)() << endl;
 	return 0;
 }
 
