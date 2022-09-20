@@ -22,6 +22,68 @@ constexpr double DEGREE = std::numbers::pi_v<double> / 180.;
 
 const Vector3d G_ACC(0., 0., -G);
 
+// def bounded(func, lower, upper, minIncr=0.001):
+//     lower = np.asarray(lower)
+//     upper = np.asarray(upper)
+//
+//     def ret(x):
+//         x = np.asarray(x)
+//         xBorder = np.where(x < lower, lower, x)
+//         xBorder = np.where(x > upper, upper, xBorder)
+//         fBorder = func(*xBorder)
+//         distFromBorder = (np.sum(np.where(x < lower, lower - x, 0.))
+//                           + np.sum(np.where(x > upper, x - upper, 0.)))
+//         return (fBorder + (fBorder
+//                            + np.where(fBorder > 0, minIncr, -minIncr)) * distFromBorder)
+//
+//     return ret
+
+using LossFunction = function<Vector2d(double, double, double*)>;
+
+inline LossFunction Bounded(const LossFunction& func, const Vector2d& lower, const Vector2d& upper,
+                            const double minIncr = 0.001)
+{
+	return [=](const double h, const double v, double* outT) -> Vector2d
+	{
+		Vector2d x(h, v);
+		Vector2d xBorder(h, v);
+		double distFromBorder = 0;
+		for (int i = 0; i < 2; i++)
+		{
+			if (x[i] < lower[i])
+			{
+				xBorder[i] = lower[i];
+				distFromBorder += lower[i] - x[i];
+			}
+			if (x[i] > upper[i])
+			{
+				xBorder[i] = upper[i];
+				distFromBorder += x[i] - upper[i];
+			}
+		}
+		if (distFromBorder == 0)
+		{
+			return func(h, v, outT);
+		}
+
+		Vector2d fBorder = func(xBorder[0], xBorder[1], outT);
+
+		Vector2d fBorderMinIncr(0, 0);
+		for (int i = 0; i < 2; i++)
+		{
+			if (fBorder[i] > 0)
+			{
+				fBorderMinIncr[i] = minIncr;
+			}
+			else
+			{
+				fBorderMinIncr[i] = -minIncr;
+			}
+		}
+
+		return fBorder + (fBorder + fBorderMinIncr) * distFromBorder;
+	};
+}
 
 inline double AngleBetween(const Vector3d& v1, const Vector3d& v2)
 {
@@ -42,7 +104,8 @@ struct Solution
 
 inline std::ostream& operator<<(std::ostream& os, const Solution& arg)
 {
-	return os << "H = " << arg.Horizonal << ", V = " << arg.Vertical << ", T = " << arg.T;
+	return os << format("Horizonal = {}бу, Vertical = {}бу, TOF = {}s", arg.Horizonal / DEGREE, arg.Vertical / DEGREE,
+	                    arg.T);
 }
 
 struct IntegrationResult
@@ -54,10 +117,10 @@ struct IntegrationResult
 inline void PrintState(const gsl_multiroot_fsolver* solver, int iter)
 {
 	const string info = format(
-		"iter = {} x = {:.3f} {:.3f} | f(x) = {:.3f} {:.3f}",
-		iter,
-		gsl_vector_get(solver->x, 0),
-		gsl_vector_get(solver->x, 1),
+		"iter = {} | x = {:.3f}, {:.3f} | loss(x) = {:.3f}, {:.3f}",
+		iter + 1,
+		gsl_vector_get(solver->x, 0) / DEGREE,
+		gsl_vector_get(solver->x, 1) / DEGREE,
 		gsl_vector_get(solver->f, 0),
 		gsl_vector_get(solver->f, 1)
 	);
@@ -100,8 +163,6 @@ class BallisticsSolver
 		gsl_poly_complex_solve(coeffs, coeffCount, workspace, results.data());
 		gsl_poly_complex_workspace_free(workspace);
 
-		cout << results << endl;
-
 		const double* t = nullptr;
 		for (auto col : results.reshaped(2, equationOrder).colwise())
 		{
@@ -132,11 +193,10 @@ class BallisticsSolver
 	bool NumericalSolution(const double initialGuessH, const double initialGuessV,
 	                       shared_ptr<Solution>* outSolution) const
 	{
-		gsl_multiroot_fsolver* solver = gsl_multiroot_fsolver_alloc(SolverType, 2);
-
 		int status;
 		int iter = 0;
 
+		gsl_multiroot_fsolver* solver = gsl_multiroot_fsolver_alloc(SolverType, 2);
 		gsl_vector* initX = gsl_vector_alloc(2);
 		gsl_vector_set(initX, 0, initialGuessH);
 		gsl_vector_set(initX, 1, initialGuessV);
@@ -147,6 +207,8 @@ class BallisticsSolver
 		PrintState(solver, iter);
 #endif
 
+		double finalH = -1, finalV = -1;
+
 		do
 		{
 			iter++;
@@ -156,8 +218,18 @@ class BallisticsSolver
 			PrintState(solver, iter);
 #endif
 
-			if (status) /* check if solver is stuck */
+			if (status) // check if solver is stuck -- GSL_EBADFUNC or GSL_ENOPROG
 				break;
+
+			finalH = gsl_vector_get(solver->x, 0);
+			finalV = gsl_vector_get(solver->x, 1);
+			Vector2d loss(gsl_vector_get(solver->f, 0), gsl_vector_get(solver->f, 1));
+
+			if (loss.norm() < TOLERANCE)
+			{
+				status = GSL_SUCCESS;
+				break;
+			}
 
 			status = gsl_multiroot_test_residual(solver->f, 1e-7);
 		}
@@ -167,21 +239,13 @@ class BallisticsSolver
 		cout << "status = " << gsl_strerror(status) << endl;
 #endif
 
-		const double h = gsl_vector_get(initX, 0);
-		const double v = gsl_vector_get(initX, 1);
-
 		gsl_vector_free(initX);
 		gsl_multiroot_fsolver_free(solver);
 
-		if (status != GSL_SUCCESS)
-		{
-			return false;
-		}
-
 		double tof;
-		const bool valid = Loss(h, v, &tof).norm() < TOLERANCE;
-		*outSolution = make_shared<Solution>(Solution{h, v, tof});
-		return valid;
+		Loss(finalH, finalV, &tof);
+		*outSolution = make_shared<Solution>(Solution{finalH, finalV, tof});
+		return status == GSL_SUCCESS;
 	}
 
 	struct LocateDtParams
@@ -235,11 +299,11 @@ class BallisticsSolver
 
 	IntegrationResult Integrate(const double horizonal, const double vertical) const
 	{
-		if (isnan(horizonal) || isnan(vertical) || horizonal < -90 * DEGREE || horizonal > 90 * DEGREE || vertical < -90
-			* DEGREE || vertical > 90 * DEGREE)
-		{
-			throw exception("OUT OF RANGE");
-		}
+		// if (isnan(horizonal) || isnan(vertical) || horizonal < -90 * DEGREE || horizonal > 90 * DEGREE || vertical < -90
+		// 	* DEGREE || vertical > 90 * DEGREE)
+		// {
+		// 	throw exception("OUT OF RANGE");
+		// }
 		Vector3d projPos(0, 0, 0);
 		Vector3d projVel = HvToVelocity(horizonal, vertical);
 		double t = 0;
@@ -260,7 +324,7 @@ class BallisticsSolver
 				LocateDtParams params{this, projPos, projVel, lastT, AirFriction};
 				const double deltaT = LocateDeltaT(params);
 
-				projAcc = AirFriction * projVel.array().pow(2).matrix() + G_ACC;
+				projAcc = AirFriction * lastVel.array().pow(2).matrix() + G_ACC;
 				lastVel += projAcc * deltaT;
 				lastPos += projVel * deltaT;
 
@@ -281,6 +345,7 @@ class BallisticsSolver
 		);
 	}
 
+	LossFunction BoundedLossFunction;
 	gsl_multiroot_function GslAdaptedLoss;
 
 public:
@@ -298,12 +363,17 @@ public:
 		InitSpeed(initSpeed),
 		AirFriction(airFriction)
 	{
+		BoundedLossFunction = Bounded([this](const double h, const double v, double* outT)
+		{
+			return Loss(h, v, outT);
+		}, Vector2d(-20 * DEGREE, -20 * DEGREE), Vector2d(20 * DEGREE, 90 * DEGREE));
+
 		auto gslAdapter = [](const gsl_vector* x, void* params, gsl_vector* f) -> int
 		{
 			const BallisticsSolver* solver = static_cast<BallisticsSolver*>(params);
 			const double horizonal = gsl_vector_get(x, 0);
 			const double vertical = gsl_vector_get(x, 1);
-			Vector2d loss = solver->Loss(horizonal, vertical);
+			Vector2d loss = solver->BoundedLossFunction(horizonal, vertical, nullptr);
 			gsl_vector_set(f, 0, loss[0]);
 			gsl_vector_set(f, 1, loss[1]);
 			return GSL_SUCCESS;

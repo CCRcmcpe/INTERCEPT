@@ -1,9 +1,7 @@
-﻿// dllmain.cpp : 定义 DLL 应用程序的入口点。
-#define WIN32_LEAN_AND_MEAN
+﻿#define WIN32_LEAN_AND_MEAN
 #include "Windows.h"
 #include "solver.h"
 #include <string>
-#include <vector>
 
 using namespace std;
 
@@ -31,7 +29,7 @@ int __stdcall RVExtensionArgs(char* output, int outputSize, const char* function
 		return -1;
 	}
 
-	vector<double> args(args_count);
+	double args[args_count] = {0};
 
 	try
 	{
@@ -52,10 +50,10 @@ int __stdcall RVExtensionArgs(char* output, int outputSize, const char* function
 		Vector3d(args[5], args[6], args[7]),
 		args[8],
 		args[9]
-	)())
+	)(); solution != nullptr)
 	{
 		auto& [horizonal, vertical, tof] = *solution;
-		const string result = format("[{},{},{}]", horizonal, vertical, tof);
+		const string result = format("[{},{},{}]", horizonal / DEGREE, vertical / DEGREE, tof);
 		strncpy_s(output, static_cast<rsize_t>(outputSize) - 1, result.c_str(), _TRUNCATE);
 		return 0;
 	}
@@ -69,6 +67,33 @@ void __stdcall RVExtensionVersion(char* output, int outputSize)
 	strncpy_s(output, static_cast<rsize_t>(outputSize) - 1, VERSION.c_str(), _TRUNCATE);
 }
 
+#ifdef _TEST
+int main()
+{
+	constexpr double AP_TANK_INIT_SPEED = 1700;
+	constexpr double HE_TANK_INIT_SPEED = 1410;
+
+	constexpr double AP_TANK = -3.96e-005;
+	constexpr double HE_TANK = -0.000275;
+	constexpr double B_127x99 = -0.00085999997;
+	constexpr double B_762x51 = -0.001;
+
+	const auto solution = BallisticsSolver(
+		Vector3d(0, 6000, 10),
+		Vector3d(10, 0, 0),
+		Vector3d(0, 0, 0),
+		HE_TANK_INIT_SPEED,
+		HE_TANK
+	)();
+
+	if (solution != nullptr)
+	{
+		cout << *solution << endl;
+		return 0;
+	}
+	cout << "nosol" << endl;
+}
+#else
 BOOL WINAPI DllMain(
 	HINSTANCE hinstDLL, // handle to DLL module
 	DWORD fdwReason, // reason for calling function
@@ -92,11 +117,6 @@ BOOL WINAPI DllMain(
 	}
 	return true;
 }
-
-// int main()
-// {
-// 	cout << *BallisticsSolver(Vector3d(0, 3000, 0), Vector3d(0, 0, 0), Vector3d(0, 0, 0), 1000, 0)() << endl;
-// 	return 0;
-// }
+#endif
 
 // ReSharper restore CppInconsistentNaming
