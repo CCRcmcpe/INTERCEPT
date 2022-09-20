@@ -15,28 +15,16 @@ using namespace Eigen;
 using namespace std;
 
 constexpr double G = 9.8066;
-constexpr double TOLERANCE = 1.;
-constexpr double HORIZONAL_EPS = 1e-05;
-constexpr double STEP_SIZE = 0.05;
 constexpr double DEGREE = std::numbers::pi_v<double> / 180.;
 
-const Vector3d G_ACC(0., 0., -G);
+constexpr double TOLERANCE = 1.;
+constexpr double HORIZONAL_EPS = 1e-05;
+constexpr double FALLBACK_TO_NUMERICAL_LOSS_TOLERANCE = 1000.;
+constexpr double STEP_SIZE = 0.05;
+constexpr int EQUATION_ORDER = 4;
+constexpr size_t COEFF_COUNT = static_cast<size_t>(EQUATION_ORDER) + 1;
 
-// def bounded(func, lower, upper, minIncr=0.001):
-//     lower = np.asarray(lower)
-//     upper = np.asarray(upper)
-//
-//     def ret(x):
-//         x = np.asarray(x)
-//         xBorder = np.where(x < lower, lower, x)
-//         xBorder = np.where(x > upper, upper, xBorder)
-//         fBorder = func(*xBorder)
-//         distFromBorder = (np.sum(np.where(x < lower, lower - x, 0.))
-//                           + np.sum(np.where(x > upper, x - upper, 0.)))
-//         return (fBorder + (fBorder
-//                            + np.where(fBorder > 0, minIncr, -minIncr)) * distFromBorder)
-//
-//     return ret
+const Vector3d G_ACC(0., 0., -G);
 
 using LossFunction = function<Vector2d(double, double, double*)>;
 
@@ -130,13 +118,14 @@ inline void PrintState(const gsl_multiroot_fsolver* solver, int iter)
 
 class BallisticsSolver
 {
-	const gsl_multiroot_fsolver_type* SolverType = gsl_multiroot_fsolver_hybrids;
+	gsl_poly_complex_workspace* PolynomialWorkspace = gsl_poly_complex_workspace_alloc(COEFF_COUNT);
+	gsl_multiroot_fsolver* NumericalSolver = gsl_multiroot_fsolver_alloc(gsl_multiroot_fsolver_hybrids, 2);
 
 	Vector3d TargetPos;
 	Vector3d TargetVelocity;
 	Vector3d TargetAcceleration;
-	double InitSpeed;
-	double AirFriction;
+	double InitSpeed = 0;
+	double AirFriction = 0;
 
 	Vector3d TargetPosF(double t) const;
 
@@ -146,25 +135,20 @@ class BallisticsSolver
 
 	bool SimplisticSolution(shared_ptr<Solution>* outSolution) const
 	{
-		constexpr int equationOrder = 4;
-		constexpr size_t coeffCount = static_cast<size_t>(equationOrder) + 1;
-
 		const Vector3d relAcc = TargetAcceleration - G_ACC;
-		const double coeffs[coeffCount] = {
+		const double coeffs[COEFF_COUNT] = {
 			TargetPos.dot(TargetPos),
 			(2.0 * TargetVelocity.dot(TargetPos)),
 			relAcc.dot(TargetPos) + TargetVelocity.dot(TargetVelocity) - InitSpeed * InitSpeed,
 			relAcc.dot(TargetVelocity),
 			relAcc.dot(relAcc) / 4.0
 		};
-		Vector<double, equationOrder * 2> results;
+		Vector<double, EQUATION_ORDER * 2> results;
 
-		gsl_poly_complex_workspace* workspace = gsl_poly_complex_workspace_alloc(coeffCount);
-		gsl_poly_complex_solve(coeffs, coeffCount, workspace, results.data());
-		gsl_poly_complex_workspace_free(workspace);
+		gsl_poly_complex_solve(coeffs, COEFF_COUNT, PolynomialWorkspace, results.data());
 
 		const double* t = nullptr;
-		for (auto col : results.reshaped(2, equationOrder).colwise())
+		for (auto col : results.reshaped(2, EQUATION_ORDER).colwise())
 		{
 			const double& real = col[0];
 			const double& imag = col[1];
@@ -187,7 +171,7 @@ class BallisticsSolver
 		Vector2d hv = VelocityToHv(vSol);
 
 		*outSolution = make_shared<Solution>(Solution{hv[0], hv[1], tof});
-		return Loss(hv[0], hv[1]).norm() < TOLERANCE;
+		return true;
 	}
 
 	bool NumericalSolution(const double initialGuessH, const double initialGuessV,
@@ -196,15 +180,14 @@ class BallisticsSolver
 		int status;
 		int iter = 0;
 
-		gsl_multiroot_fsolver* solver = gsl_multiroot_fsolver_alloc(SolverType, 2);
 		gsl_vector* initX = gsl_vector_alloc(2);
 		gsl_vector_set(initX, 0, initialGuessH);
 		gsl_vector_set(initX, 1, initialGuessV);
 
-		gsl_multiroot_fsolver_set(solver, const_cast<gsl_multiroot_function*>(&GslAdaptedLoss), initX);
+		gsl_multiroot_fsolver_set(NumericalSolver, const_cast<gsl_multiroot_function*>(&GslAdaptedLoss), initX);
 
 #if _DEBUG
-		PrintState(solver, iter);
+		PrintState(NumericalSolver, iter);
 #endif
 
 		double finalH = -1, finalV = -1;
@@ -212,18 +195,18 @@ class BallisticsSolver
 		do
 		{
 			iter++;
-			status = gsl_multiroot_fsolver_iterate(solver);
+			status = gsl_multiroot_fsolver_iterate(NumericalSolver);
 
 #if _DEBUG
-			PrintState(solver, iter);
+			PrintState(NumericalSolver, iter);
 #endif
 
 			if (status) // check if solver is stuck -- GSL_EBADFUNC or GSL_ENOPROG
 				break;
 
-			finalH = gsl_vector_get(solver->x, 0);
-			finalV = gsl_vector_get(solver->x, 1);
-			Vector2d loss(gsl_vector_get(solver->f, 0), gsl_vector_get(solver->f, 1));
+			finalH = gsl_vector_get(NumericalSolver->x, 0);
+			finalV = gsl_vector_get(NumericalSolver->x, 1);
+			Vector2d loss(gsl_vector_get(NumericalSolver->f, 0), gsl_vector_get(NumericalSolver->f, 1));
 
 			if (loss.norm() < TOLERANCE)
 			{
@@ -231,7 +214,7 @@ class BallisticsSolver
 				break;
 			}
 
-			status = gsl_multiroot_test_residual(solver->f, 1e-7);
+			status = gsl_multiroot_test_residual(NumericalSolver->f, 1e-7);
 		}
 		while (status == GSL_CONTINUE && iter < 100);
 
@@ -240,7 +223,6 @@ class BallisticsSolver
 #endif
 
 		gsl_vector_free(initX);
-		gsl_multiroot_fsolver_free(solver);
 
 		double tof;
 		Loss(finalH, finalV, &tof);
@@ -268,10 +250,10 @@ class BallisticsSolver
 			return 90 * DEGREE - AngleBetween(solver->TargetPosF(t + deltaT) - projPos2, projVel2);
 		};
 
-		double lo = -STEP_SIZE, hi = STEP_SIZE;
+		double lo = 0, hi = STEP_SIZE;
 
-		//cout << exactTimeEq(lo, &exactTimeParams) << endl;
-		//cout << exactTimeEq(hi, &exactTimeParams) << endl;
+		// cout << exactTimeEq(lo, &exactTimeParams) << endl;
+		// cout << exactTimeEq(hi, &exactTimeParams) << endl;
 
 		gsl_function function{exactTimeEq, &exactTimeParams};
 		gsl_root_fsolver* const brent = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
@@ -321,7 +303,7 @@ class BallisticsSolver
 			Vector3d targetPos = TargetPosF(t);
 			if (const double angle = 90 * DEGREE - AngleBetween(targetPos - projPos, projVel); angle < 0)
 			{
-				LocateDtParams params{this, projPos, projVel, lastT, AirFriction};
+				LocateDtParams params{this, lastPos, lastVel, lastT, AirFriction};
 				const double deltaT = LocateDeltaT(params);
 
 				projAcc = AirFriction * lastVel.array().pow(2).matrix() + G_ACC;
@@ -345,52 +327,69 @@ class BallisticsSolver
 		);
 	}
 
-	LossFunction BoundedLossFunction;
-	gsl_multiroot_function GslAdaptedLoss;
+	const LossFunction BoundedLossFunction;
+	const gsl_multiroot_function GslAdaptedLoss;
 
 public:
-	BallisticsSolver(
-		// TARGET
-		Vector3d targetPos,
-		Vector3d targetVelocity,
-		Vector3d targetAcceleration,
-		// PROJECTILE
-		const double initSpeed,
-		const double airFriction) :
-		TargetPos(move(targetPos)),
-		TargetVelocity(move(targetVelocity)),
-		TargetAcceleration(move(targetAcceleration)),
-		InitSpeed(initSpeed),
-		AirFriction(airFriction)
+	BallisticsSolver() :
+		BoundedLossFunction(
+			Bounded([this](const double h, const double v, double* outT)
+			{
+				return Loss(h, v, outT);
+			}, Vector2d(-40 * DEGREE, -20 * DEGREE), Vector2d(40 * DEGREE, 90 * DEGREE))
+		),
+		GslAdaptedLoss({
+			[](const gsl_vector* x, void* params, gsl_vector* f) -> int
+			{
+				const BallisticsSolver* solver = static_cast<BallisticsSolver*>(params);
+				const double horizonal = gsl_vector_get(x, 0);
+				const double vertical = gsl_vector_get(x, 1);
+				Vector2d loss = solver->BoundedLossFunction(horizonal, vertical, nullptr);
+				gsl_vector_set(f, 0, loss[0]);
+				gsl_vector_set(f, 1, loss[1]);
+				return GSL_SUCCESS;
+			},
+			2, this
+		})
 	{
-		BoundedLossFunction = Bounded([this](const double h, const double v, double* outT)
-		{
-			return Loss(h, v, outT);
-		}, Vector2d(-20 * DEGREE, -20 * DEGREE), Vector2d(20 * DEGREE, 90 * DEGREE));
-
-		auto gslAdapter = [](const gsl_vector* x, void* params, gsl_vector* f) -> int
-		{
-			const BallisticsSolver* solver = static_cast<BallisticsSolver*>(params);
-			const double horizonal = gsl_vector_get(x, 0);
-			const double vertical = gsl_vector_get(x, 1);
-			Vector2d loss = solver->BoundedLossFunction(horizonal, vertical, nullptr);
-			gsl_vector_set(f, 0, loss[0]);
-			gsl_vector_set(f, 1, loss[1]);
-			return GSL_SUCCESS;
-		};
-
-		GslAdaptedLoss = {gslAdapter, 2, this};
 	}
 
-	shared_ptr<Solution> operator()() const
+	~BallisticsSolver()
 	{
+		gsl_poly_complex_workspace_free(PolynomialWorkspace);
+		gsl_multiroot_fsolver_free(NumericalSolver);
+	}
+
+	shared_ptr<Solution> operator()(
+		// TARGET
+		const Vector3d& targetPos,
+		const Vector3d& targetVelocity,
+		const Vector3d& targetAcceleration,
+		// PROJECTILE
+		const double initSpeed,
+		const double airFriction)
+	{
+		TargetPos = targetPos;
+		TargetVelocity = targetVelocity;
+		TargetAcceleration = targetAcceleration;
+		InitSpeed = initSpeed;
+		AirFriction = airFriction;
+
 		shared_ptr<Solution> result;
 
-		if (SimplisticSolution(&result))
-		{
+		if (!SimplisticSolution(&result))
+			return nullptr;
+
+		if (AirFriction == 0)
 			return result;
-		}
-		if (result == nullptr) return nullptr;
+
+		const double loss = Loss(result->Horizonal, result->Vertical).norm();
+
+		if (loss < TOLERANCE)
+			return result;
+
+		if (loss > FALLBACK_TO_NUMERICAL_LOSS_TOLERANCE)
+			return nullptr;
 
 		if (NumericalSolution(result->Horizonal, result->Vertical, &result))
 		{
@@ -398,11 +397,9 @@ public:
 			{
 				result->Horizonal = 0;
 			}
-
-			return result;
 		}
 
-		return nullptr;
+		return result;
 	}
 };
 

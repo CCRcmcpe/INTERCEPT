@@ -6,6 +6,7 @@
 using namespace std;
 
 const string& VERSION = "Ballistik Komputer v6.9"s;
+BallisticsSolver solver;
 
 // ReSharper disable CppInconsistentNaming
 
@@ -21,7 +22,8 @@ void __stdcall RVExtension(char* output, int outputSize, const char* function)
 }
 
 // 0: success, 1: unknown, -1: invalid argument, -2: argument parse failed
-int __stdcall RVExtensionArgs(char* output, int outputSize, const char* function, const char** argv, int argc)
+int __stdcall RVExtensionArgs(char* output, const int outputSize, const char* function, const char** argv,
+                              const int argc)
 {
 	constexpr int args_count = 10;
 	if (strcmp(function, "find_solution") != 0 || argc != args_count)
@@ -44,13 +46,13 @@ int __stdcall RVExtensionArgs(char* output, int outputSize, const char* function
 		return -2;
 	}
 
-	if (const auto solution = BallisticsSolver(
+	if (const auto solution = solver(
 		Vector3d(0, args[0], args[1]),
 		Vector3d(args[2], args[3], args[4]),
 		Vector3d(args[5], args[6], args[7]),
 		args[8],
 		args[9]
-	)(); solution != nullptr)
+	); solution != nullptr)
 	{
 		auto& [horizonal, vertical, tof] = *solution;
 		const string result = format("[{},{},{}]", horizonal / DEGREE, vertical / DEGREE, tof);
@@ -78,13 +80,20 @@ int main()
 	constexpr double B_127x99 = -0.00085999997;
 	constexpr double B_762x51 = -0.001;
 
-	const auto solution = BallisticsSolver(
-		Vector3d(0, 6000, 10),
-		Vector3d(10, 0, 0),
-		Vector3d(0, 0, 0),
+	solver(
+		Vector3d(0, 840.861,432.879),
+		Vector3d(-195.552,50.4639,19.8177),
+		Vector3d(-2.21441,0.301842,0.402441),
 		HE_TANK_INIT_SPEED,
 		HE_TANK
-	)();
+	);
+	const auto solution = solver(
+		Vector3d(0, 840.861,432.879),
+		Vector3d(-195.552,50.4639,19.8177),
+		Vector3d(-2.21441,0.301842,0.402441),
+		HE_TANK_INIT_SPEED,
+		HE_TANK
+	);
 
 	if (solution != nullptr)
 	{
