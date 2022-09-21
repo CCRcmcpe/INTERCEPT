@@ -102,7 +102,7 @@ struct IntegrationResult
 	double T;
 };
 
-inline void PrintState(const gsl_multiroot_fsolver* solver, int iter)
+inline void PrintState(const gsl_multiroot_fsolver* solver, const int iter)
 {
 	const string info = format(
 		"iter = {} | x = {:.3f}, {:.3f} | loss(x) = {:.3f}, {:.3f}",

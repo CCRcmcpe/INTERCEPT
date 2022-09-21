@@ -64,7 +64,7 @@ int __stdcall RVExtensionArgs(char* output, const int outputSize, const char* fu
 }
 
 
-void __stdcall RVExtensionVersion(char* output, int outputSize)
+void __stdcall RVExtensionVersion(char* output, const int outputSize)
 {
 	strncpy_s(output, static_cast<rsize_t>(outputSize) - 1, VERSION.c_str(), _TRUNCATE);
 }
@@ -104,9 +104,9 @@ int main()
 }
 #else
 BOOL WINAPI DllMain(
-	HINSTANCE hinstDLL, // handle to DLL module
-	DWORD fdwReason, // reason for calling function
-	LPVOID lpvReserved) // reserved
+	const HINSTANCE hinstDLL, // handle to DLL module
+	const DWORD fdwReason, // reason for calling function
+	const LPVOID lpvReserved) // reserved
 {
 	switch (fdwReason)
 	{
