@@ -25,5 +25,6 @@
   <ItemGroup>
     <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gsl.dll" />
     <CopyFileToFolders Include="D:\vcpkg\packages\gsl_x64-windows\bin\gslcblas.dll" />
+    <CopyFileToFolders Include="C:\Program Files\Microsoft Visual Studio\2022\Professional\VC\Tools\MSVC\14.33.31629\bin\Hostx64\x64\onecore\pgort140.dll" />
   </ItemGroup>
 </Project>
